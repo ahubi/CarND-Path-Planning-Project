@@ -214,7 +214,7 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
   int lane = 1; //0 most left lane, n - most right lane
-  double ref_vel = 49.5; //mph
+  double ref_vel = 1; //mph
 
   h.onMessage([&map_waypoints_x,
                &map_waypoints_y,
@@ -262,6 +262,37 @@ int main() {
           	auto sensor_fusion = j[1]["sensor_fusion"];
 
             int prev_size = previous_path_x.size();
+
+            if (prev_size > 0) {
+              car_s = end_path_s;
+            }
+            bool too_close = false;
+
+            // find ref_v to use
+            for (size_t i = 0; i < sensor_fusion.size(); i++) {
+              // Car is in my lane
+              float d = sensor_fusion[i][6];
+              if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2)) {
+                double vx = sensor_fusion[i][3];
+                double vy = sensor_fusion[i][4];
+                double check_speed = sqrt(vx*vx+vy*vy);
+                double check_car_s = sensor_fusion[i][5];
+
+                //find s of the checking car
+                check_car_s += ((double)prev_size*.02*check_speed);
+                //check car is in front of ego car and gap is smaller than 30m
+                if((check_car_s > car_s) && ((check_car_s-car_s) < 30)){
+                  //ref_vel = 29.5; //mph
+                  too_close = true;
+                }
+
+              }
+            }
+
+            if(too_close)
+              ref_vel -= .224;
+            else if(ref_vel < 49.5)
+              ref_vel += .224;
 
             vector<double> ptsx;
             vector<double> ptsy;
@@ -311,7 +342,7 @@ int main() {
               ptsx[i] = (shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw));
               ptsy[i] = (shift_x * sin(0 - ref_yaw)+ shift_y * cos(0 - ref_yaw));
             }
-
+            //use spline library to calculate the points
             tk::spline s;
             s.set_points(ptsx, ptsy);
 
@@ -322,7 +353,10 @@ int main() {
               next_x_vals.push_back(previous_path_x[i]);
               next_y_vals.push_back(previous_path_y[i]);
             }
-
+            /*
+                Calculate how to break up spline points so that we travel
+                at our desired refernece velocity.
+            */
             double target_x = 30;
             double target_y = s(target_x);
             double target_dist = sqrt(pow(target_x,2) + pow(target_y, 2));
