@@ -5,6 +5,7 @@
 #include <iostream>
 #include <thread>
 #include <vector>
+#include <set>
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
@@ -267,30 +268,73 @@ int main() {
               car_s = end_path_s;
             }
             bool too_close = false;
-
+            set<int> free_lanes;
             // find ref_v to use
             for (size_t i = 0; i < sensor_fusion.size(); i++) {
-              // Car is in my lane
-              float d = sensor_fusion[i][6];
-              if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2)) {
-                double vx = sensor_fusion[i][3];
-                double vy = sensor_fusion[i][4];
-                double check_speed = sqrt(vx*vx+vy*vy);
-                double check_car_s = sensor_fusion[i][5];
+              int car_id          = sensor_fusion[i][0];
+              double vx           = sensor_fusion[i][3];
+              double vy           = sensor_fusion[i][4];
+              float d             = sensor_fusion[i][6];
+              double check_car_s  = sensor_fusion[i][5];
+              double check_speed  = sqrt(vx*vx+vy*vy);
 
-                //find s of the checking car
-                check_car_s += ((double)prev_size*.02*check_speed);
+              //find s of the checking car
+              check_car_s += ((double)prev_size*.02*check_speed);
+              double behind_me  = car_s - check_car_s;
+              double infront_of_me  = check_car_s - car_s;
+
+              // Car is in my lane
+              if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2)) {
                 //check car is in front of ego car and gap is smaller than 30m
-                if((check_car_s > car_s) && ((check_car_s-car_s) < 30)){
+                if((check_car_s > car_s) && (infront_of_me < 30)){
                   //ref_vel = 29.5; //mph
                   too_close = true;
                 }
+              }
+              else{
+                unsigned int check_lane=0;
+                double my_car_pos    = j[1]["s"];
+                double other_car_s  = sensor_fusion[i][5];
 
+                if(d > (2 + 4 * lane)) //Check right lane
+                  check_lane = (lane+1) % 3;
+                else
+                  check_lane = (lane-1) < 0 ? 0 : (lane-1);
+
+                /*
+                  add lane here as a possible lane
+                  check below will remove the lane
+                */
+                free_lanes.insert(check_lane);
+                if((check_car_s > car_s) && (infront_of_me < 35)){
+                  cout << "range check: lane " << check_lane  << " blocked" << endl;
+                  free_lanes.erase(check_lane);
+                }
+                else if((check_car_s < car_s) && (behind_me < 35)){
+                  cout << "behind check: lane " << check_lane  << " blocked" << endl;
+                  free_lanes.erase(check_lane);
+                }
+                else if(fabs(check_car_s-car_s) < 35){
+                  cout << "fabs check: lane " << check_lane  << " blocked" << endl;
+                  free_lanes.erase(check_lane);
+                }
+                else{
+                  //<<" vx: " << vx <<" vy: " << vy <<" check_speed: " << check_speed
+                  cout<<"id: " << car_id <<" d: " << d <<" check_car_s: " << check_car_s
+                      <<" car_s: " << car_s << endl;
+                }
               }
             }
 
-            if(too_close)
+            if(too_close){
               ref_vel -= .224;
+              if (free_lanes.size()>0){
+                for (set<int>::iterator it=free_lanes.begin(); it!=free_lanes.end(); ++it){
+                  if(abs(lane - *it) < 2) //don't change more than one lane
+                      lane = *it;
+                }
+              }
+            }
             else if(ref_vel < 49.5)
               ref_vel += .224;
 
