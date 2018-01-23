@@ -225,7 +225,7 @@ int main() {
   double ref_vel  = 1; //mph
   double t_x      = 30; //target x
   int   num_pts   = 50; //number of points in the path
-  path_planer my_ppl(31, 15);
+  path_planer my_ppl(30, 15);
   h.onMessage([&map_waypoints_x,
                &map_waypoints_y,
                &map_waypoints_s,
@@ -340,7 +340,7 @@ int main() {
             ptsx[i] = (shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw));
             ptsy[i] = (shift_x * sin(0 - ref_yaw)+ shift_y * cos(0 - ref_yaw));
           }
-              //use spline library to calculate the points
+          //use spline library to calculate the points
           tk::spline s;
           s.set_points(ptsx, ptsy);
 
