@@ -10,6 +10,7 @@
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
 #include "spline.h"
+#include "path_planer.h"
 
 using namespace std;
 
@@ -139,7 +140,6 @@ vector<double> getFrenet(double x,
   frenet_s += distance(0,0,proj_x,proj_y);
 
   return {frenet_s,frenet_d};
-
 }
 
 // Transform from Frenet s,d coordinates to Cartesian x,y
@@ -173,10 +173,41 @@ vector<double> getXY(double s,
   return {x,y};
 
 }
+void fill_waypoints(vector<double>& _x,
+                    vector<double>& _y,
+                    vector<double>& _s,
+                    vector<double>& _dx,
+                    vector<double>& _dy)
+{
+  // Waypoint map to read from
+  string map_file_ = "../data/highway_map.csv";
 
-//d value of a lane
-float dOf(int lane){return 2+4*lane;}
-
+  ifstream in_map_(map_file_.c_str(), ifstream::in);
+  if(!in_map_){
+    cerr << "Failed to read map data from " << map_file_
+        << " fatal error!" << endl;
+    exit(-1);
+  }
+  string line;
+  while (getline(in_map_, line)) {
+    istringstream iss(line);
+    double x;
+    double y;
+    float s;
+    float d_x;
+    float d_y;
+    iss >> x;
+    iss >> y;
+    iss >> s;
+    iss >> d_x;
+    iss >> d_y;
+    _x.push_back(x);
+    _y.push_back(y);
+    _s.push_back(s);
+    _dx.push_back(d_x);
+    _dy.push_back(d_y);
+  }
+}
 int main() {
   uWS::Hub h;
 
@@ -187,46 +218,20 @@ int main() {
   vector<double> map_waypoints_dx;
   vector<double> map_waypoints_dy;
 
-  // Waypoint map to read from
-  string map_file_ = "../data/highway_map.csv";
-  // The max s value before wrapping around the track back to 0
-  double max_s = 6945.554;
+  fill_waypoints(map_waypoints_x, map_waypoints_y,
+                 map_waypoints_s, map_waypoints_dx, map_waypoints_dy);
 
-  ifstream in_map_(map_file_.c_str(), ifstream::in);
-  if(!in_map_){
-    cerr << "Failed to read map data from " << map_file_
-        << " fatal error!" << endl;
-    exit(-1);
-  }
-  string line;
-  while (getline(in_map_, line)) {
-  	istringstream iss(line);
-  	double x;
-  	double y;
-  	float s;
-  	float d_x;
-  	float d_y;
-  	iss >> x;
-  	iss >> y;
-  	iss >> s;
-  	iss >> d_x;
-  	iss >> d_y;
-  	map_waypoints_x.push_back(x);
-  	map_waypoints_y.push_back(y);
-  	map_waypoints_s.push_back(s);
-  	map_waypoints_dx.push_back(d_x);
-  	map_waypoints_dy.push_back(d_y);
-  }
   int lane = 1; //0 most left lane, n - most right lane
   double ref_vel = 1; //mph
-
+  path_planer my_ppl(35, 20);
   h.onMessage([&map_waypoints_x,
                &map_waypoints_y,
                &map_waypoints_s,
                &map_waypoints_dx,
                &map_waypoints_dy,
                &lane,
-               &ref_vel]
+               &ref_vel,
+               &my_ppl]
                (uWS::WebSocket<uWS::SERVER> ws,
                 char *data, size_t length,
                 uWS::OpCode opCode) {
@@ -241,209 +246,152 @@ int main() {
 
       if (s != "") {
         auto j = json::parse(s);
-
         string event = j[0].get<string>();
-
         if (event == "telemetry") {
-          // j[1] is the data JSON object
+          // Main car's localization Data
+          double car_x = j[1]["x"];
+          double car_y = j[1]["y"];
+          double car_s = j[1]["s"];
+          double car_d = j[1]["d"];
+          double car_yaw = j[1]["yaw"];
+          double car_speed = j[1]["speed"];
 
-        	// Main car's localization Data
-          	double car_x = j[1]["x"];
-          	double car_y = j[1]["y"];
-          	double car_s = j[1]["s"];
-          	double car_d = j[1]["d"];
-          	double car_yaw = j[1]["yaw"];
-          	double car_speed = j[1]["speed"];
+          // Previous path data given to the Planner
+          auto previous_path_x = j[1]["previous_path_x"];
+          auto previous_path_y = j[1]["previous_path_y"];
+          // Previous path's end s and d values
+          double end_path_s = j[1]["end_path_s"];
+          double end_path_d = j[1]["end_path_d"];
 
-          	// Previous path data given to the Planner
-          	auto previous_path_x = j[1]["previous_path_x"];
-          	auto previous_path_y = j[1]["previous_path_y"];
-          	// Previous path's end s and d values
-          	double end_path_s = j[1]["end_path_s"];
-          	double end_path_d = j[1]["end_path_d"];
+          // Sensor Fusion Data, a list of all other cars on the same side of the road.
+          auto sensor_fusion = j[1]["sensor_fusion"];
 
-          	// Sensor Fusion Data, a list of all other cars on the same side of the road.
-          	auto sensor_fusion = j[1]["sensor_fusion"];
+          int prev_size = previous_path_x.size();
+          double max_speed = 49.5;
 
-            int prev_size = previous_path_x.size();
+          //behavior/path planing
+          vector<int> act =my_ppl.get_next_actions(lane, j);
+          bool too_close  = (act[0]>0);
+          max_speed       = act[1];
+          int new_lane    = act[2];
 
-            if (prev_size > 0) {
-              car_s = end_path_s;
+          // cout << "too_close: " << too_close
+          //      << " max_speed: " << max_speed
+          //      << " new_lane: " << new_lane << endl;
+
+          //Motion control
+          if(too_close){
+            ref_vel -= .224*1.5;
+            if (new_lane != -1){
+                lane = new_lane;
             }
+          }
+          else if(ref_vel < max_speed) //49.5
+            ref_vel += .224*1.5;
 
-            bool too_close = false;
-            double max_speed = 49.5;
-            set<int> free_lanes;
+          vector<double> ptsx;
+          vector<double> ptsy;
+          double ref_x   = car_x;
+          double ref_y   = car_y;
+          double ref_yaw = deg2rad(car_yaw);
 
-            // find ref_v to use
-            for (size_t i = 0; i < sensor_fusion.size(); i++) {
-              int car_id          = sensor_fusion[i][0];
-              double vx           = sensor_fusion[i][3];
-              double vy           = sensor_fusion[i][4];
-              float d             = sensor_fusion[i][6];
-              double s            = sensor_fusion[i][5];
-              double check_car_s  = sensor_fusion[i][5];
-              double check_speed  = sqrt(vx*vx+vy*vy);
+          if(prev_size < 2){
+            double prev_car_x = car_x - cos(car_yaw);
+            double prev_car_y = car_y - sin(car_yaw);
 
-              //find s of the checking car
-              check_car_s += ((double)prev_size*.02*check_speed);
-              double behind_me  = car_s - s;
-              double infront_of_me  = s - car_s;
+            ptsx.push_back(prev_car_x);
+            ptsx.push_back(car_x);
 
-              // Car is in my lane
-              if (d < (dOf(lane) + 2) && d > (dOf(lane) - 2)) {
-                //check car is in front of ego car and gap is smaller than 30m
-                if((check_car_s > car_s) && (check_car_s - car_s) < 30){
-                  max_speed = check_speed;
-                  too_close = true;
-                }
-              }
-              else{
-                //ignore objects in too far away lanes
-                if(fabs(d-dOf(lane) < 4)){
-                  unsigned int check_lane=0;
-                  if(d > dOf(lane)) //Check right lane
-                    check_lane = (lane+1) % 3;
-                  else
-                    check_lane = (lane-1) < 0 ? 0 : (lane-1);
+            ptsy.push_back(prev_car_y);
+            ptsy.push_back(car_y);
+          }else{
+            ref_x = previous_path_x[prev_size-1];
+            ref_y = previous_path_y[prev_size-1];
+            double ref_x_prev = previous_path_x[prev_size-2];
+            double ref_y_prev = previous_path_y[prev_size-2];
+            ref_yaw = atan2(ref_y-ref_y_prev, ref_x-ref_x_prev);
 
-                  /*
-                    add lane here as a possible lane
-                    check below will remove the lane
-                  */
-                  free_lanes.insert(check_lane);
-                  if((s >= car_s) && (infront_of_me > 20)){
-                    cout << "range check: lane " << check_lane  << " blocked" << endl;
-                    free_lanes.erase(check_lane);
-                  }
-                  else if((s < car_s) && (behind_me > 15)){
-                    cout << "behind check: lane " << check_lane  << " blocked" << endl;
-                    free_lanes.erase(check_lane);
-                  }
-                  else{
-                    //<<" vx: " << vx <<" vy: " << vy <<" check_speed: " << check_speed
-                    cout<<"id: " << car_id <<" d: " << d <<" s: " << s
-                        <<" car_s: " << car_s << endl;
-                  }
-                }
-              }
-            }
-            if(too_close){
-              ref_vel -= .224*2;
-              if (free_lanes.size()>0){
-                for (set<int>::iterator it=free_lanes.begin(); it!=free_lanes.end(); ++it){
-                  if(abs(lane - *it) < 2) //don't change more than one lane
-                      lane = *it;
-                }
-              }
-            }
-            else if(ref_vel < max_speed) //49.5
-              ref_vel += .224*2;
+            ptsx.push_back(ref_x_prev);
+            ptsx.push_back(ref_x);
 
-            vector<double> ptsx;
-            vector<double> ptsy;
-            double ref_x   = car_x;
-            double ref_y   = car_y;
-            double ref_yaw = deg2rad(car_yaw);
-
-            if(prev_size < 2){
-              double prev_car_x = car_x - cos(car_yaw);
-              double prev_car_y = car_y - sin(car_yaw);
-
-              ptsx.push_back(prev_car_x);
-              ptsx.push_back(car_x);
-
-              ptsy.push_back(prev_car_y);
-              ptsy.push_back(car_y);
-            }else{
-              ref_x = previous_path_x[prev_size-1];
-              ref_y = previous_path_y[prev_size-1];
-              double ref_x_prev = previous_path_x[prev_size-2];
-              double ref_y_prev = previous_path_y[prev_size-2];
-              ref_yaw = atan2(ref_y-ref_y_prev, ref_x-ref_x_prev);
-
-              ptsx.push_back(ref_x_prev);
-              ptsx.push_back(ref_x);
-
-              ptsy.push_back(ref_y_prev);
-              ptsy.push_back(ref_y);
-            }
+            ptsy.push_back(ref_y_prev);
+            ptsy.push_back(ref_y);
+          }
             //add evenly 30m spaced points ahead of the starting reference
-            vector<double> next_wp0 = getXY(car_s + 30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> next_wp1 = getXY(car_s + 60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> next_wp2 = getXY(car_s + 90, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp0 = getXY(car_s + 40, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp1 = getXY(car_s + 80, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp2 = getXY(car_s + 120, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
-            ptsx.push_back(next_wp0[0]);
-            ptsx.push_back(next_wp1[0]);
-            ptsx.push_back(next_wp2[0]);
+          ptsx.push_back(next_wp0[0]);
+          ptsx.push_back(next_wp1[0]);
+          ptsx.push_back(next_wp2[0]);
 
-            ptsy.push_back(next_wp0[1]);
-            ptsy.push_back(next_wp1[1]);
-            ptsy.push_back(next_wp2[1]);
+          ptsy.push_back(next_wp0[1]);
+          ptsy.push_back(next_wp1[1]);
+          ptsy.push_back(next_wp2[1]);
 
-            for(size_t i = 0; i < ptsx.size(); i++){
-              //shift car reference angle to 0 degrees
-              double shift_x = ptsx[i] - ref_x;
-              double shift_y = ptsy[i] - ref_y;
-              ptsx[i] = (shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw));
-              ptsy[i] = (shift_x * sin(0 - ref_yaw)+ shift_y * cos(0 - ref_yaw));
-            }
-            //use spline library to calculate the points
-            tk::spline s;
-            s.set_points(ptsx, ptsy);
+          for(size_t i = 0; i < ptsx.size(); i++){
+            //shift car reference angle to 0 degrees
+            double shift_x = ptsx[i] - ref_x;
+            double shift_y = ptsy[i] - ref_y;
+            ptsx[i] = (shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw));
+            ptsy[i] = (shift_x * sin(0 - ref_yaw)+ shift_y * cos(0 - ref_yaw));
+          }
+              //use spline library to calculate the points
+          tk::spline s;
+          s.set_points(ptsx, ptsy);
 
-            vector<double> next_x_vals;
-          	vector<double> next_y_vals;
-            //use previous points
-            for (size_t i = 0; i < previous_path_x.size(); i++){
-              next_x_vals.push_back(previous_path_x[i]);
-              next_y_vals.push_back(previous_path_y[i]);
-            }
-            /*
-                Calculate how to break up spline points so that we travel
-                at our desired refernece velocity.
-            */
-            double target_x = 30;
-            double target_y = s(target_x);
-            double target_dist = sqrt(pow(target_x,2) + pow(target_y, 2));
-            double x_add_on = 0;
-            /*
-              use previous not consumed points and fill up to 50 points with
-              new ones
-            */
-            for (size_t i = 1; i <= 50 - previous_path_x.size(); i++){
-              double N = (target_dist / (.02 * ref_vel / MPH_TO_MPS_CONSTANT));
-              double x_point = x_add_on + (target_x) / N;
-              double y_point = s(x_point);
+          vector<double> next_x_vals;
+          vector<double> next_y_vals;
+          //use previous points
+          for (size_t i = 0; i < previous_path_x.size(); i++){
+            next_x_vals.push_back(previous_path_x[i]);
+            next_y_vals.push_back(previous_path_y[i]);
+          }
+          /*
+              Calculate how to break up spline points so that we travel
+              at our desired refernece velocity.
+          */
+          double target_x = 40;
+          double target_y = s(target_x);
+          double target_dist = sqrt(pow(target_x,2) + pow(target_y, 2));
+          double x_add_on = 0;
+          /*
+            use previous not consumed points and fill up to 50 points with
+            new ones
+          */
+          for (size_t i = 1; i <= 50 - previous_path_x.size(); i++){
+            double N = (target_dist / (.02 * ref_vel / MPH_TO_MPS_CONSTANT));
+            double x_point = x_add_on + (target_x) / N;
+            double y_point = s(x_point);
 
-              x_add_on = x_point;
+            x_add_on = x_point;
 
-              double x_ref = x_point;
-              double y_ref = y_point;
-              //rotate back to normal after rotating it early
-              x_point = (x_ref*cos(ref_yaw) - y_ref*sin(ref_yaw));
-              y_point = (x_ref*sin(ref_yaw) + y_ref*cos(ref_yaw));
+            double x_ref = x_point;
+            double y_ref = y_point;
+            //rotate back to normal after rotating it early
+            x_point = (x_ref*cos(ref_yaw) - y_ref*sin(ref_yaw));
+            y_point = (x_ref*sin(ref_yaw) + y_ref*cos(ref_yaw));
 
-              x_point += ref_x;
-              y_point += ref_y;
+            x_point += ref_x;
+            y_point += ref_y;
 
-              next_x_vals.push_back(x_point);
-              next_y_vals.push_back(y_point);
-            }
+            next_x_vals.push_back(x_point);
+            next_y_vals.push_back(y_point);
+          }
 
-            json msgJson;
-            msgJson["next_x"] = next_x_vals;
-          	msgJson["next_y"] = next_y_vals;
+          json msgJson;
+          msgJson["next_x"] = next_x_vals;
+          msgJson["next_y"] = next_y_vals;
 
-          	auto msg = "42[\"control\","+ msgJson.dump()+"]";
-            ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-
+          auto msg = "42[\"control\","+ msgJson.dump()+"]";
+          ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
-      } else {
-        // Manual driving
-        std::string msg = "42[\"manual\",{}]";
-        ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
       }
+    } else {
+      // Manual driving
+      std::string msg = "42[\"manual\",{}]";
+      ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
     }
   });
 
