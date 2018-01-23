@@ -20,9 +20,11 @@ bool path_planer::is_safe_to_chage(vector<car_obj>& front,
   if (front.size()>0 && back.size()==0)
     return (front[0].dist2me > safe_distance_front);
   else if (front.size()==0 && back.size()>0)
-    return (back[0].dist2me > safe_distance_back);
+    return (back[0].dist2me > safe_distance_back && back[0].v < my_speed);
   else if (front.size()>0 && back.size()>0)
-    return (front[0].dist2me > safe_distance_front && back[0].dist2me > safe_distance_back);
+    return (front[0].dist2me > safe_distance_front &&
+            back[0].dist2me > safe_distance_back &&
+            back[0].v < my_speed);
   else //front and back are empty - lane is safe
     return true;
 
@@ -61,17 +63,16 @@ int path_planer::get_next_free_lane(const int& current_lane){
   }
   return new_lane;
 }
-vector<int> path_planer::get_next_actions(const int& my_lane,
+vector<double> path_planer::get_next_actions(const int& my_lane,
                                           const json& j)
 {
   //Main car's localization Data
-  double car_x = j[1]["x"];
-  double car_y = j[1]["y"];
-  double car_s = j[1]["s"];
-  double car_d = j[1]["d"];
-  double car_yaw = j[1]["yaw"];
-  double car_speed = j[1]["speed"];
-
+  double car_x    = j[1]["x"];
+  double car_y    = j[1]["y"];
+  double car_s    = j[1]["s"];
+  double car_d    = j[1]["d"];
+  double car_yaw  = j[1]["yaw"];
+  my_speed        = j[1]["speed"]; //set speed lane checks
   // Previous path data given to the Planner
   auto previous_path_x = j[1]["previous_path_x"];
   auto previous_path_y = j[1]["previous_path_y"];
@@ -89,7 +90,7 @@ vector<int> path_planer::get_next_actions(const int& my_lane,
   }
 
   int too_close = 0;
-  int max_speed = 49;
+  double max_speed = 49.5;
   int new_lane  = my_lane;
   //clear objects from previous cycle
   for (auto& lobj:lane_obj_front_)
@@ -114,7 +115,7 @@ vector<int> path_planer::get_next_actions(const int& my_lane,
     // Car is in my lane
     if (get_obj_lane(d)==my_lane) {
       //check car is in front of ego car and gap is smaller than 30m
-      if((check_car_s > car_s) && (check_car_s - car_s) < 30){
+      if((check_car_s > car_s) && (check_car_s - car_s) < (safe_distance_front-1)){
         max_speed = check_speed;
         too_close = 1;
       }

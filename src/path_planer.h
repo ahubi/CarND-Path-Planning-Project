@@ -39,6 +39,7 @@ private:
   unsigned long lane_change_cycle_;         //at which cycle was lane change
   int safe_distance_front;
   int safe_distance_back;
+  double my_speed;                          //speed of the self driving car
   vector<vector<car_obj>> lane_obj_front_;   //keeps objects in front of me
   vector<vector<car_obj>> lane_obj_back_;    //keeps objects behind me
 
@@ -48,7 +49,7 @@ private:
 public:
   path_planer (const int& safe_distance_front, const int& safe_distance_back);
   virtual ~path_planer ();
-  vector<int> get_next_actions(const int& my_lane,
+  vector<double> get_next_actions(const int& my_lane,
                                const json& sensor_data);
 };
 #endif

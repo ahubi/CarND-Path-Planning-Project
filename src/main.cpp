@@ -221,9 +221,11 @@ int main() {
   fill_waypoints(map_waypoints_x, map_waypoints_y,
                  map_waypoints_s, map_waypoints_dx, map_waypoints_dy);
 
-  int lane = 1; //0 most left lane, n - most right lane
-  double ref_vel = 1; //mph
-  path_planer my_ppl(35, 20);
+  int lane        = 1; //0 most left lane, n - most right lane
+  double ref_vel  = 1; //mph
+  double t_x      = 30; //target x
+  int   num_pts   = 50; //number of points in the path
+  path_planer my_ppl(30, 15);
   h.onMessage([&map_waypoints_x,
                &map_waypoints_y,
                &map_waypoints_s,
@@ -231,7 +233,9 @@ int main() {
                &map_waypoints_dy,
                &lane,
                &ref_vel,
-               &my_ppl]
+               &my_ppl,
+               &num_pts,
+               &t_x]
                (uWS::WebSocket<uWS::SERVER> ws,
                 char *data, size_t length,
                 uWS::OpCode opCode) {
@@ -270,20 +274,19 @@ int main() {
           double max_speed = 49.5;
 
           //behavior/path planing
-          vector<int> act =my_ppl.get_next_actions(lane, j);
+          vector<double> act =my_ppl.get_next_actions(lane, j);
           bool too_close  = (act[0]>0);
           max_speed       = act[1];
-          int new_lane    = act[2];
+          int new_lane    = (int)act[2];
 
           // cout << "too_close: " << too_close
           //      << " max_speed: " << max_speed
           //      << " new_lane: " << new_lane << endl;
-
           //Motion control
           if(too_close){
             ref_vel -= .224*1.5;
             if (new_lane != -1){
-                lane = new_lane;
+              lane = new_lane;
             }
           }
           else if(ref_vel < max_speed) //49.5
@@ -317,10 +320,10 @@ int main() {
             ptsy.push_back(ref_y_prev);
             ptsy.push_back(ref_y);
           }
-            //add evenly 30m spaced points ahead of the starting reference
-          vector<double> next_wp0 = getXY(car_s + 40, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp1 = getXY(car_s + 80, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp2 = getXY(car_s + 120, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          //add evenly 30m spaced points ahead of the starting reference
+          vector<double> next_wp0 = getXY(car_s + 30, ((2+4*lane)), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp1 = getXY(car_s + 60, ((2+4*lane)), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp2 = getXY(car_s + 90, ((2+4*lane)), map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
           ptsx.push_back(next_wp0[0]);
           ptsx.push_back(next_wp1[0]);
@@ -352,7 +355,7 @@ int main() {
               Calculate how to break up spline points so that we travel
               at our desired refernece velocity.
           */
-          double target_x = 40;
+          double target_x = t_x;
           double target_y = s(target_x);
           double target_dist = sqrt(pow(target_x,2) + pow(target_y, 2));
           double x_add_on = 0;
@@ -360,7 +363,7 @@ int main() {
             use previous not consumed points and fill up to 50 points with
             new ones
           */
-          for (size_t i = 1; i <= 50 - previous_path_x.size(); i++){
+          for (size_t i = 1; i <= num_pts - previous_path_x.size(); i++){
             double N = (target_dist / (.02 * ref_vel / MPH_TO_MPS_CONSTANT));
             double x_point = x_add_on + (target_x) / N;
             double y_point = s(x_point);
