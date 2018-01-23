@@ -287,7 +287,7 @@ int main() {
             }
           }
           else if(ref_vel < max_speed) //49.5
-            ref_vel += .224*1.5;
+            ref_vel += .224;
 
           vector<double> ptsx;
           vector<double> ptsy;
