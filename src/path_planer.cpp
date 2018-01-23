@@ -54,8 +54,11 @@ int path_planer::get_next_free_lane(const int& current_lane){
           check number of cars in front and choose
           lane with smaller number of cars
         */
-        if (front2.size() < front.size())
+        if(new_lane==0){
+          if (front2.size() < front.size())
             new_lane=2;
+        }else
+          new_lane=2;
       }
       break;
     default:

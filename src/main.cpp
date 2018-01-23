@@ -225,7 +225,7 @@ int main() {
   double ref_vel  = 1; //mph
   double t_x      = 30; //target x
   int   num_pts   = 50; //number of points in the path
-  path_planer my_ppl(30, 15);
+  path_planer my_ppl(31, 15);
   h.onMessage([&map_waypoints_x,
                &map_waypoints_y,
                &map_waypoints_s,
