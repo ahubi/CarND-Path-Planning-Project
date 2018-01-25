@@ -70,18 +70,13 @@ vector<double> path_planer::get_next_actions(const int& my_lane,
                                           const json& j)
 {
   //Main car's localization Data
-  double car_x    = j[1]["x"];
-  double car_y    = j[1]["y"];
   double car_s    = j[1]["s"];
-  double car_d    = j[1]["d"];
-  double car_yaw  = j[1]["yaw"];
   my_speed        = j[1]["speed"]; //set speed lane checks
   // Previous path data given to the Planner
   auto previous_path_x = j[1]["previous_path_x"];
   auto previous_path_y = j[1]["previous_path_y"];
   // Previous path's end s and d values
   double end_path_s = j[1]["end_path_s"];
-  double end_path_d = j[1]["end_path_d"];
 
   // Sensor Fusion Data, a list of all other cars on the same side of the road.
   auto sensor_fusion = j[1]["sensor_fusion"];
@@ -92,9 +87,9 @@ vector<double> path_planer::get_next_actions(const int& my_lane,
     car_s = end_path_s;
   }
 
-  int too_close = 0;
+  double too_close = 0;
   double max_speed = 49.5;
-  int new_lane  = my_lane;
+  double new_lane  = my_lane;
   //clear objects from previous cycle
   for (auto& lobj:lane_obj_front_)
     lobj.clear();
@@ -104,11 +99,9 @@ vector<double> path_planer::get_next_actions(const int& my_lane,
 
   // find ref_v to use
   for (size_t i = 0; i < sensor_fusion.size(); i++) {
-    int car_id          = sensor_fusion[i][0];
     double vx           = sensor_fusion[i][3];
     double vy           = sensor_fusion[i][4];
     float d             = sensor_fusion[i][6];
-    double s            = sensor_fusion[i][5];
     double check_car_s  = sensor_fusion[i][5];
     double check_speed  = sqrt(vx*vx+vy*vy);
 
@@ -118,7 +111,7 @@ vector<double> path_planer::get_next_actions(const int& my_lane,
     // Car is in my lane
     if (get_obj_lane(d)==my_lane) {
       //check car is in front of ego car and gap is smaller than 30m
-      if((check_car_s > car_s) && (check_car_s - car_s) < (safe_distance_front-1)){
+      if((check_car_s > car_s) && (check_car_s - car_s) < 30){
         max_speed = check_speed;
         too_close = 1;
       }
@@ -142,18 +135,12 @@ vector<double> path_planer::get_next_actions(const int& my_lane,
     }
   }
   cycle_count_++;
-  //stay at least for 5 cycles in the same lane to avoid jumpy lane changes
-  if((cycle_count_ - lane_change_cycle_) > 5){
+  //stay at least for 10 cycles in the same lane to avoid jumpy lane changes
+  if((cycle_count_ - lane_change_cycle_) > 10){
     new_lane = get_next_free_lane(my_lane);
-    if (new_lane != -1)
+    if (new_lane != -1 && new_lane != my_lane && too_close==1){
       lane_change_cycle_ = cycle_count_;
+    }
   }
-
-  /*
-  cout<<"--> cycle: " << cycle_count_ << endl;
-  cout<<"Lane[0] front: " << lane_obj_front_[0].size() <<" back: " << lane_obj_back_[0].size() << endl;
-  cout<<"Lane[1] front: " << lane_obj_front_[1].size() <<" back: " << lane_obj_back_[1].size() << endl;
-  cout<<"Lane[2] front: " << lane_obj_front_[2].size() <<" back: " << lane_obj_back_[2].size() << endl;
-  */
   return {too_close, max_speed, new_lane};
 }
