@@ -223,8 +223,9 @@ int main() {
 
   int lane             = 1; //0 most left lane, n - most right lane
   double ref_velocity  = 1; //mph
-  path_planer my_ppl(35, 20);
-h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s,
+  path_planer my_ppl(35, 15);
+
+  h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s,
              &map_waypoints_dx, &map_waypoints_dy, &lane, &ref_velocity,
              &my_ppl]
              (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
