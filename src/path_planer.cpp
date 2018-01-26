@@ -1,7 +1,6 @@
 #include "path_planer.h"
 
-path_planer::path_planer(const int& sdf,
-                         const int& sdb)
+path_planer::path_planer(const int& sdf, const int& sdb)
 : cycle_count_(0),
   lane_change_cycle_(0),
   safe_distance_front(sdf),
@@ -10,8 +9,9 @@ path_planer::path_planer(const int& sdf,
   lane_obj_back_(vector<vector<car_obj>>(3))
 {
 }
-path_planer::~path_planer()
-{}
+
+path_planer::~path_planer(){}
+
 //checks if it's safe to change to this lane
 bool path_planer::is_safe_to_chage(vector<car_obj>& front,
                                   vector<car_obj>& back){
@@ -119,18 +119,9 @@ vector<double> path_planer::get_next_actions(const int& my_lane,
     else{
       int obj_lane = get_obj_lane(d);
       if(obj_lane != -1){
-        car_obj c;
-        c.d = d;
-        c.v = check_speed;
-        c.s = check_car_s;
-        if((check_car_s >= car_s)){ //in front of my car
-          c.dist2me = check_car_s - car_s;
-          lane_obj_front_[obj_lane].push_back(c);
-        }
-        else{ //behind my car
-          c.dist2me = car_s - check_car_s;
-          lane_obj_back_[obj_lane].push_back(c);
-        }
+        double d2m = check_car_s >= car_s ? (check_car_s-car_s):(car_s-check_car_s);
+        car_obj c(check_car_s, d, check_speed, d2m);
+        lane_obj_front_[obj_lane].push_back(c);
       }
     }
   }

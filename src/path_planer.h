@@ -7,10 +7,8 @@
 #include <algorithm>
 #include "json.hpp"
 
-using json = nlohmann::json;
 using namespace std;
-//d value of a lane
-inline float dOf(int lane){return 2+4*lane;}
+using json = nlohmann::json;
 
 //returns lane which corresponds to objects d frenet coordinate
 inline int get_obj_lane(const double& d){
@@ -29,7 +27,18 @@ struct car_obj{
   float d;          //frenet d coordinate of the object
   double v;         //velocity/speed of the object
   double dist2me;   //distance to me at time of observation
+  //operator to sort objects, required by std containers
   bool operator<(const car_obj &r){return dist2me < r.dist2me;};
+  car_obj(){};
+  car_obj(const double s_,
+          const float d_,
+          const double v_,
+          const double d2m)
+          : s(s_)
+          , d(d_)
+          , v(v_)
+          , dist2me(d2m)
+          {};
 };
 
 class path_planer {
@@ -37,8 +46,8 @@ private:
 
   unsigned long cycle_count_;               //counts update cycles
   unsigned long lane_change_cycle_;         //at which cycle was lane change
-  int safe_distance_front;
-  int safe_distance_back;
+  int safe_distance_front;                  //distance to car required for safe lane change
+  int safe_distance_back;                   //distance to back car required for safe lane change
   double my_speed;                          //speed of the self driving car
   vector<vector<car_obj>> lane_obj_front_;   //keeps objects in front of me
   vector<vector<car_obj>> lane_obj_back_;    //keeps objects behind me
@@ -47,9 +56,8 @@ private:
   bool is_safe_to_chage(vector<car_obj>& front,
                         vector<car_obj>& back);
 public:
-  path_planer (const int& safe_distance_front, const int& safe_distance_back);
   virtual ~path_planer ();
-  vector<double> get_next_actions(const int& my_lane,
-                               const json& sensor_data);
+  path_planer (const int& safe_distance_front, const int& safe_distance_back);
+  vector<double> get_next_actions(const int& my_lane, const json& sensor_data);
 };
 #endif
