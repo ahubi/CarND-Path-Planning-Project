@@ -14,9 +14,11 @@ path_planer::~path_planer(){}
 
 //checks if it's safe to change to this lane
 bool path_planer::is_safe_to_chage(vector<car_obj>& front,
-                                  vector<car_obj>& back){
+                                   vector<car_obj>& back){
+  //sort objects, shortest disctance first
   sort(front.begin(), front.end());
   sort(back.begin(), back.end());
+  //Check only first element with shortest disctance to "me"
   if (front.size()>0 && back.size()==0)
     return (front[0].dist2me > safe_distance_front);
   else if (front.size()==0 && back.size()>0)
@@ -66,8 +68,7 @@ int path_planer::get_next_free_lane(const int& current_lane){
   }
   return new_lane;
 }
-vector<double> path_planer::get_next_actions(const int& my_lane,
-                                          const json& j)
+vector<double> path_planer::get_next_actions(const int& my_lane, const json& j)
 {
   //Main car's localization Data
   double car_s    = j[1]["s"];
@@ -104,20 +105,17 @@ vector<double> path_planer::get_next_actions(const int& my_lane,
     float d             = sensor_fusion[i][6];
     double check_car_s  = sensor_fusion[i][5];
     double check_speed  = sqrt(vx*vx+vy*vy);
-
     //find s of the checking car
     check_car_s += ((double)prev_size*.02*check_speed);
-
+    int obj_lane = get_obj_lane(d);
     // Car is in my lane
-    if (get_obj_lane(d)==my_lane) {
+    if (obj_lane == my_lane) {
       //check car is in front of ego car and gap is smaller than 30m
       if((check_car_s > car_s) && (check_car_s - car_s) < 30){
         max_speed = check_speed;
         too_close = 1;
       }
-    }
-    else{
-      int obj_lane = get_obj_lane(d);
+    } else {
       if(obj_lane != -1){
         double d2m = check_car_s >= car_s ? (check_car_s-car_s):(car_s-check_car_s);
         car_obj c(check_car_s, d, check_speed, d2m);

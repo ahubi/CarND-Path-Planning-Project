@@ -343,7 +343,6 @@ int main() {
         }
 
         tk::spline s;
-
         s.set_points(pts_x, pts_y);
 
         vector<double> next_x_vals;

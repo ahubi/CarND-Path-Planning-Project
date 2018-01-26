@@ -105,10 +105,97 @@ As stated above the goal of this project is:
 * Obey speed limit
 
 ### Move safely the car on the highway through traffic
-In this project the highway has three lanes:
+In this project the highway has three lanes, each lane has a width of 4 meters.
+Lane id's starting from the left are used to identify the lanes in the code and
+to calculate trajectories.
 
-![Lane model](./img/drawing.png) Lane model and change pattens
+![Lane model](./img/drawing.png)
 
-The car simulator provides within the sensor_fusion data all car objects
-detected by the sensors.
-To not crash with other cars
+Lane model and change pattens
+The red car in the picture can do one lane at a time. Double lane changes are
+also in the real world scenario a dangerous maneuver. The car simulator provides
+within the sensor_fusion data all car objects detected by the sensors.
+On every update from simulator the surrounding cars are sorted into two groups:
+
+* Cars in front
+* Cars behind
+
+For the same lane as the self driving car only distance to the object in front
+is checked. The class path_planer is created to handle sensor data and provide
+information for next possible and necessary actions.
+
+```
+class path_planer {
+private:
+  unsigned long cycle_count_;               //counts update cycles
+  unsigned long lane_change_cycle_;         //at which cycle was lane change
+  int safe_distance_front;                  //distance to car required for safe lane change
+  int safe_distance_back;                   //distance to back car required for safe lane change
+  double my_speed;                          //speed of the self driving car
+  vector<vector<car_obj>> lane_obj_front_;   //keeps objects in front of me
+  vector<vector<car_obj>> lane_obj_back_;    //keeps objects behind me
+  //finds next free lane
+  int get_next_free_lane(const int& lane);
+  //checks whether it's safe to change to the lane with passed objects
+  bool is_safe_to_chage(vector<car_obj>& front, vector<car_obj>& back);
+public:
+  virtual ~path_planer ();
+  path_planer (const int& safe_distance_front, const int& safe_distance_back);
+  //Returns a vector  with {too_close, max_speed, new_lane}
+  vector<double> get_next_actions(const int& my_lane, const json& sensor_data);
+};
+
+```
+Sorting objects into front and behind. Identify whether self driving car is
+too close to the the car in front and remember it's speed.
+
+```
+  int obj_lane = get_obj_lane(d);
+  // Car is in my lane
+  if (obj_lane == my_lane) {
+    //check car is in front of ego car and gap is smaller than 30m
+    if((check_car_s > car_s) && (check_car_s - car_s) < 30){
+      max_speed = check_speed;
+      too_close = 1;
+    }
+  } else {
+    if(obj_lane != -1){
+      double d2m = check_car_s >= car_s ? (check_car_s-car_s):(car_s-check_car_s);
+      car_obj c(check_car_s, d, check_speed, d2m);
+      lane_obj_front_[obj_lane].push_back(c);
+    }
+  }
+
+```
+Pass telemetry data to path_planner and receive next actions. Change the lane
+if the car is too close to the car in front. Reduce or increase speed if necessary.
+```
+vector<double> actions = my_ppl.get_next_actions(lane, j);
+bool too_close = (actions[0] > 0);
+max_velocity = actions[1];
+int new_lane = (int)actions[2];
+if (too_close) {
+  if (new_lane != -1)
+    lane = new_lane;
+}
+if (ref_velocity < max_velocity) {
+  ref_velocity += (0.224 * 2);
+} else {
+  ref_velocity -= (0.224 * 2);
+}
+```
+### Change lanes with minimum jerk
+To change lanes with minimum jerk the spline library mentioned above  is used.
+With the help of this library a smooth path is created which is given to the simulator
+to follow.
+
+```
+tk::spline s;
+s.set_points(pts_x, pts_y);
+```
+### Room for improvements
+* Add cost functions for maneuvers
+* Add handling for suddenly stopping cars
+* Add handling for sharp lane changes of other cars
+* Add data based predictions
+* Add trajectory generation and select trajectory based on cost functions

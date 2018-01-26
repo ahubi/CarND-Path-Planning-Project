@@ -43,7 +43,6 @@ struct car_obj{
 
 class path_planer {
 private:
-
   unsigned long cycle_count_;               //counts update cycles
   unsigned long lane_change_cycle_;         //at which cycle was lane change
   int safe_distance_front;                  //distance to car required for safe lane change
@@ -51,13 +50,14 @@ private:
   double my_speed;                          //speed of the self driving car
   vector<vector<car_obj>> lane_obj_front_;   //keeps objects in front of me
   vector<vector<car_obj>> lane_obj_back_;    //keeps objects behind me
-
-  int get_next_free_lane(const int& lane);   //finds next free lane
-  bool is_safe_to_chage(vector<car_obj>& front,
-                        vector<car_obj>& back);
+  //finds next free lane
+  int get_next_free_lane(const int& lane);
+  //checks whether it's safe to change to the lane with passed objects
+  bool is_safe_to_chage(vector<car_obj>& front, vector<car_obj>& back);
 public:
   virtual ~path_planer ();
   path_planer (const int& safe_distance_front, const int& safe_distance_back);
+  //Returns a vector  with {too_close, max_speed, new_lane}
   vector<double> get_next_actions(const int& my_lane, const json& sensor_data);
 };
 #endif
