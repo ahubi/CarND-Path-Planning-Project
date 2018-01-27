@@ -5,8 +5,8 @@ path_planer::path_planer(const int& sdf, const int& sdb)
   lane_change_cycle_(0),
   safe_distance_front(sdf),
   safe_distance_back(sdb),
-  lane_obj_front_(vector<vector<car_obj>>(3)),
-  lane_obj_back_(vector<vector<car_obj>>(3))
+  lane_obj_front_(vector<vector<car_obj>>(3)),  //3 lanes highway
+  lane_obj_back_(vector<vector<car_obj>>(3))    //3 lanes highway
 {
 }
 

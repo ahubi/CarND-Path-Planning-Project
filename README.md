@@ -102,25 +102,25 @@ In this section the solution is described. See also  [rubrics](https://review.ud
 As stated above the goal of this project is:
 * Move safely the car on the highway through traffic
 * Change lanes with minimum jerk
-* Obey speed limit
 
 ### Move safely the car on the highway through traffic
-In this project the highway has three lanes, each lane has a width of 4 meters.
+The highway has three lanes, each lane has a width of 4 meters.
 Lane id's starting from the left are used to identify the lanes in the code and
 to calculate trajectories.
 
 ![Lane model](./img/drawing.png)
 
 Lane model and change pattens
-The red car in the picture can do one lane at a time. Double lane changes are
-also in the real world scenario a dangerous maneuver. The car simulator provides
-within the sensor_fusion data all car objects detected by the sensors.
-On every update from simulator the surrounding cars are sorted into two groups:
+The red car in the picture can do one lane change at a time. Double lane changes
+are not favored and also in the real world scenario are considered as a
+dangerous maneuver. The car simulator provides within the sensor_fusion data
+all car objects detected by the sensors. On every update from simulator the
+surrounding cars are sorted into two groups:
 
-* Cars in front
-* Cars behind
+* Cars in front of the self driving vehicle
+* Cars behind the self driving vehicle
 
-For the same lane as the self driving car only distance to the object in front
+For the lane in which self driving car is driving only distance to the object in front
 is checked. The class path_planer is created to handle sensor data and provide
 information for next possible and necessary actions.
 
@@ -194,8 +194,8 @@ tk::spline s;
 s.set_points(pts_x, pts_y);
 ```
 ### Room for improvements
-* Add cost functions for maneuvers
+* Add trajectory generation and select trajectory based on cost functions
+* Regulate speed in a more fluent way
 * Add handling for suddenly stopping cars
 * Add handling for sharp lane changes of other cars
 * Add data based predictions
-* Add trajectory generation and select trajectory based on cost functions

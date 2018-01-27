@@ -30,15 +30,8 @@ struct car_obj{
   //operator to sort objects, required by std containers
   bool operator<(const car_obj &r){return dist2me < r.dist2me;};
   car_obj(){};
-  car_obj(const double s_,
-          const float d_,
-          const double v_,
-          const double d2m)
-          : s(s_)
-          , d(d_)
-          , v(v_)
-          , dist2me(d2m)
-          {};
+  car_obj(const double s_, const float d_, const double v_, const double d2m)
+          : s(s_), d(d_), v(v_), dist2me(d2m){};
 };
 
 class path_planer {
@@ -48,8 +41,8 @@ private:
   int safe_distance_front;                  //distance to car required for safe lane change
   int safe_distance_back;                   //distance to back car required for safe lane change
   double my_speed;                          //speed of the self driving car
-  vector<vector<car_obj>> lane_obj_front_;   //keeps objects in front of me
-  vector<vector<car_obj>> lane_obj_back_;    //keeps objects behind me
+  vector<vector<car_obj>> lane_obj_front_;  //keeps objects in front of me
+  vector<vector<car_obj>> lane_obj_back_;   //keeps objects behind me
   //finds next free lane
   int get_next_free_lane(const int& lane);
   //checks whether it's safe to change to the lane with passed objects
