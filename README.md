@@ -110,12 +110,12 @@ to calculate trajectories.
 
 ![Lane model](./img/drawing.png)
 
-Lane model and change pattens
-The red car in the picture can do one lane change at a time. Double lane changes
-are not favored and also in the real world scenario are considered as a
-dangerous maneuver. The car simulator provides within the sensor_fusion data
-all car objects detected by the sensors. On every update from simulator the
-surrounding cars are sorted into two groups:
+The above picture shows lane model and change pattens. The red car in the picture
+can do one lane change at a time. Double lane changes are not favored and also
+in the real world scenario are considered as a dangerous maneuver.
+The car simulator provides within the sensor_fusion data all car objects d
+etected by the sensors. On every update from simulator the surrounding
+cars are sorted into two groups:
 
 * Cars in front of the self driving vehicle
 * Cars behind the self driving vehicle
